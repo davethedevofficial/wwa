@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
           image: DecorationImage(
             fit: BoxFit.cover,
             alignment: Alignment.topCenter,
-            image: Image.asset('assets/images/Splash.png').image,
+            image: Image.asset('assets/images/splash.png').image,
           ),
         ),
         child: SafeArea(
@@ -37,7 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               // Image.asset('assets/images/Logo.png'),
-              SvgPicture.asset('assets/images/Logo.svg'),
+              SvgPicture.asset('assets/images/logo.svg'),
               SizedBox(height: 10),
               Text(
                 'WOMEN WORKOUT APP',
