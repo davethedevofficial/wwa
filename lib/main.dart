@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wwa/helpers/data.dart';
 import 'package:wwa/screens/home_screen.dart';
 import 'package:wwa/screens/splash_screen.dart';
 import 'package:wwa/screens/workout_screen.dart';
@@ -12,6 +13,7 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    getPrefs();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Women Workout App',

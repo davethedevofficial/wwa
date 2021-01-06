@@ -24,6 +24,8 @@ dependencies:
   flutter_svg:
   url_launcher:
   video_player:
+  vector_math:
+  shared_preferences:
   flutter:
     sdk: flutter
 
@@ -41,6 +43,9 @@ flutter_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/icon/icon.png"
+
+# flutter pub run flutter_launcher_icons:main
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -54,9 +59,9 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/images/logo.svg
-    - assets/images/splash.png
-    - assets/workouts/
+    - assets/images/
+    - assets/workouts/instructions/
+    - assets/workouts/loops/
     - assets/thumbnails/
 
   # An image asset can refer to one or more resolution-specific "variants", see
