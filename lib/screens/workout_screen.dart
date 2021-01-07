@@ -11,6 +11,11 @@ import 'package:wwa/helpers/colors.dart';
 import 'package:wwa/models/workout.dart';
 import 'package:wwa/models/exercise.dart';
 import 'package:wwa/widgets/wwa_elevation.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:soundpool/soundpool.dart';
+import 'package:flutter/services.dart';
+import 'package:audio_service/audio_service.dart';
+import 'package:just_audio/just_audio.dart';
 
 class WorkoutScreen extends StatefulWidget {
   @override
@@ -29,9 +34,40 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   int currentExerciseIndex;
 
   bool autoContinue = true;
+  bool musicMuted = false;
+  bool soundMuted = false;
   bool isResting = false;
-  bool isCompleted = true;
+  bool isCompleted = false;
   String restMessage = '';
+  AudioPlayer player;
+  int soundId;
+  List<String> music = [
+    'CHRIS_HERIA___FOCUS.mp3',
+    'CHRIS_HERIA___ZEN.mp3',
+    'NEFFEX___Alive.mp3',
+    'NEFFEX___Best_of_Me.mp3',
+    'NEFFEX___Careless.mp3',
+    'NEFFEX___Chance.mp3',
+    'NEFFEX___Cold.mp3',
+    'NEFFEX___Comeback.mp3',
+    'NEFFEX___Coming_For_You.mp3',
+    'NEFFEX___Crown.mp3',
+    'NEFFEX___Dangerous.mp3',
+    'NEFFEX___Destiny.mp3',
+    'NEFFEX___Failure.mp3',
+    'NEFFEX___Fight_Back.mp3',
+    'NEFFEX___Grateful.mp3',
+    'NEFFEX___Life.mp3',
+    'NEFFEX___Never_Give_Up.mp3',
+    'NEFFEX___Play.mp3',
+    'NEFFEX___Rumors.mp3',
+    'NEFFEX___Soldier.mp3',
+    'NEFFEX___Watch_Me.mp3',
+    'Street_Workout.mp3',
+    'NEFFEX___Things_Are_Gonna_Get_Better.mp3',
+    'NEFFEX___Be_Somebody_ft_ROZES.mp3'
+  ];
+  List<String> playlist = [];
 
   bool allCompleted() {
     var completed = true;
@@ -106,9 +142,66 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     });
   }
 
+  loadMusic() async {
+    music.shuffle();
+    playlist = music.sublist(0, 10);
+    // await player.setAsset("assets/music/neffex__best_of_me.mp3");
+    await player.setAudioSource(
+      ConcatenatingAudioSource(
+        // Start loading next item just before reaching it.
+        useLazyPreparation: true, // default
+        // Customise the shuffle algorithm.
+        shuffleOrder: DefaultShuffleOrder(), // default
+        // Specify the items in the playlist.
+        children: playlist
+            .map((e) => AudioSource.uri(Uri.parse("asset:///assets/music/$e")))
+            .toList(),
+      ),
+      // Playback will be prepared to start from track1.mp3
+      initialIndex: 0, // default
+      // Playback will be prepared to start from position zero.
+      initialPosition: Duration.zero, // default
+    );
+
+    player.currentIndexStream.listen((i) {
+      var song = "${playlist[i]}";
+      song = song.replaceAll('___', ' - ');
+      song = song.replaceAll('_', ' ');
+      song = song.replaceAll('.mp3', '');
+      Fluttertoast.showToast(
+          msg: 'Song ~ $song',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM_RIGHT,
+          timeInSecForIosWeb: 1,
+          backgroundColor: primaryColor,
+          textColor: Colors.white,
+          fontSize: 16.0);
+    });
+
+    await player.setShuffleModeEnabled(true);
+    await player.shuffle();
+
+    if (!musicMuted) await player.play();
+  }
+
+  playMusic() async {
+    // pool = Soundpool(streamType: StreamType.music, maxStreams: 1);
+    // // if (pool != null) pool.release();
+    // soundId = await rootBundle
+    //     .load('assets/music/neffex__best_of_me.mp3')
+    //     .then((ByteData soundData) {
+    //   return pool.load(soundData);
+    // });
+
+    // pool.play(soundId);
+  }
+
   @override
   void initState() {
     autoContinue = prefs.getBool('autoContinue') ?? autoContinue;
+    musicMuted = prefs.getBool('musicMuted') ?? musicMuted;
+    soundMuted = prefs.getBool('soundMuted') ?? soundMuted;
+
     currentWorkout = workouts[0];
     currentCircuitIndex = 0;
     currentExerciseIndex = 0;
@@ -116,10 +209,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     // offers several different constructors to play videos from assets, files,
     // or the internet.
     _controller = VideoPlayerController.asset(
-      currentWorkout.circuits[currentCircuitIndex]
-          .exercises[currentExerciseIndex].clipPath,
-    );
+        currentWorkout.circuits[currentCircuitIndex]
+            .exercises[currentExerciseIndex].clipPath,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
     _controller.setLooping(true);
+    _controller.setVolume(0);
     // _controller = VideoPlayerController.network(
     //   'https://firebasestorage.googleapis.com/v0/b/wwapp-5da9c.appspot.com/o/Banded%20Lateral%20Walk%20-%20Vertical.mp4?alt=media&token=c90b46ba-442e-45eb-97ba-ff27cf93832d',
     // );
@@ -158,6 +252,20 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         nextExercise();
       }
     });
+
+    player = AudioPlayer();
+
+    loadMusic();
+
+    playMusic();
+    // Fluttertoast.showToast(
+    //     msg: "~Music: NEFFEX - Best of Me",
+    //     toastLength: Toast.LENGTH_LONG,
+    //     gravity: ToastGravity.BOTTOM_RIGHT,
+    //     timeInSecForIosWeb: 1,
+    //     backgroundColor: primaryColor,
+    //     textColor: Colors.white,
+    //     fontSize: 16.0);
 
     super.initState();
   }
@@ -207,6 +315,9 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     // Ensure disposing of the VideoPlayerController to free up resources.
     _controller.dispose();
 
+    player.stop();
+    player.dispose();
+
     super.dispose();
   }
 
@@ -241,6 +352,65 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                 Align(
                   alignment: Alignment.topRight,
                   child: _wwaTimer,
+                ),
+                Positioned(
+                  top: 110,
+                  right: 35,
+                  child: Wrap(
+                    direction: Axis.vertical,
+                    spacing: 20,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          if (player.playing) {
+                            player.pause();
+                            musicMuted = true;
+                            prefs.setBool('musicMuted', musicMuted);
+                          } else {
+                            player.play();
+                            musicMuted = false;
+                            prefs.setBool('musicMuted', musicMuted);
+                          }
+
+                          setState(() {});
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(160),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: Colors.black, blurRadius: 20)
+                              ]),
+                          child: Icon(
+                            player.playing ? Icons.music_note : Icons.music_off,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          soundMuted = !soundMuted;
+                          prefs.setBool('soundMuted', soundMuted);
+
+                          setState(() {});
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(160),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: Colors.black, blurRadius: 20)
+                              ]),
+                          child: Icon(
+                            !soundMuted ? Icons.volume_up : Icons.volume_off,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 Align(
                   alignment: Alignment.bottomLeft,
@@ -458,13 +628,220 @@ class _WorkoutScreenState extends State<WorkoutScreen>
           Container(
             width: double.infinity,
             height: isCompleted ? double.infinity : 0,
-            color: primaryColor,
+            color: Colors.white,
             child: SafeArea(
               child: Stack(
                 children: [
-                  Text(
-                    'WELL DONE',
-                    style: TextStyle(color: Colors.white),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        width: double.infinity,
+                        child: Wrap(
+                          direction: Axis.vertical,
+                          spacing: -100,
+                          children: [
+                            Image.asset('assets/images/victory.png'),
+                            Container(
+                              width: MediaQuery.of(context).size.width,
+                              decoration: BoxDecoration(
+                                  color: primaryColor,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(99),
+                                    topRight: Radius.circular(99),
+                                  )),
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 20),
+                                    child: Text(
+                                      'Add to your Fit Journal',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20.0),
+                                    child: Wrap(
+                                      spacing: 40,
+                                      children: [
+                                        InkWell(
+                                          onTap: () {},
+                                          child: Wrap(
+                                            direction: Axis.vertical,
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 70,
+                                                height: 70,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Image.asset(
+                                                    'assets/images/journal_media_icon.png'),
+                                              ),
+                                              SizedBox(height: 5),
+                                              Text(
+                                                'Media',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            ],
+                                          ),
+                                        ),
+                                        InkWell(
+                                          onTap: () {},
+                                          child: Wrap(
+                                            direction: Axis.vertical,
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 70,
+                                                height: 70,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Image.asset(
+                                                    'assets/images/journal_thought_icon.png'),
+                                              ),
+                                              SizedBox(height: 5),
+                                              Text(
+                                                'Thought',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            ],
+                                          ),
+                                        ),
+                                        InkWell(
+                                          onTap: () {},
+                                          child: Wrap(
+                                            direction: Axis.vertical,
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 70,
+                                                height: 70,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Image.asset(
+                                                    'assets/images/journal_scale_icon.png'),
+                                              ),
+                                              SizedBox(height: 5),
+                                              Text(
+                                                'Weight',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              )
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(height: 60),
+                                  RaisedButton(
+                                    child: Text(
+                                      'HOME',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(99),
+                                    ),
+                                    elevation: 12,
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 30, vertical: 20),
+                                    color: Colors.white,
+                                    textColor: Colors.black,
+                                    onPressed: () {
+                                      if (_wwaRestTimer.stopTimer != null)
+                                        _wwaRestTimer.stopTimer();
+
+                                      Navigator.pushNamed(
+                                        context,
+                                        '/home',
+                                      );
+                                    },
+                                  ),
+                                  SizedBox(
+                                    height: 20,
+                                  )
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        SizedBox(height: 20),
+                        Text(
+                          'WELL DONE',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'WORKOUT\nCOMPLETED!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'Hope to see you tomorrow',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black.withAlpha(150),
+                            fontSize: 20,
+                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   )
                 ],
               ),

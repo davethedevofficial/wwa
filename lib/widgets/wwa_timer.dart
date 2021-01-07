@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wwa/widgets/wwa_circle_loader_painter.dart';
+import 'package:soundpool/soundpool.dart';
+import 'package:flutter/services.dart';
+import 'package:wwa/helpers/data.dart';
 
 class WWATimer extends StatefulWidget {
   WWATimer({
@@ -31,8 +34,73 @@ class _WWATimerState extends State<WWATimer>
   Animation curve;
   Timer _timer;
   double _time = 0;
+  Timer _prepTimer;
+  double _prepTime = 3;
+  bool _autoPlay = false;
+  Soundpool pool;
+  int doneSoundId;
+  int setSoundId;
+  int goSoundId;
+
+  loadSounds() async {
+    doneSoundId = await rootBundle
+        .load('assets/audios/beep1.mp3')
+        .then((ByteData soundData) {
+      return pool.load(soundData);
+    });
+    setSoundId = await rootBundle
+        .load('assets/audios/beep2.mp3')
+        .then((ByteData soundData) {
+      return pool.load(soundData);
+    });
+    goSoundId = await rootBundle
+        .load('assets/audios/beep3.mp3')
+        .then((ByteData soundData) {
+      return pool.load(soundData);
+    });
+  }
+
+  playSound(int id) {
+    pool.play(id);
+  }
+
+  String getPrepMessage() {
+    if (_prepTime < 1.1) return 'BEGIN!';
+    if (_prepTime < 2.1) return 'SET!';
+    if (_prepTime < 3.1) return 'GET READY!';
+
+    return '';
+  }
+
+  void startPrepTimer() {
+    const qSec = const Duration(milliseconds: 100);
+    _prepTimer = new Timer.periodic(
+      qSec,
+      (Timer timer) {
+        if (_prepTime < 0.01) {
+          setState(() {
+            startTimer();
+            timer.cancel();
+          });
+        } else {
+          if (!prefs.getBool('soundMuted')) {
+            if (_prepTime == 3) playSound(setSoundId);
+            if (_prepTime.toStringAsFixed(1) == '2.1') playSound(setSoundId);
+            if (_prepTime.toStringAsFixed(1) == '1.1') playSound(goSoundId);
+          }
+          setState(() {
+            _prepTime -= 0.1;
+          });
+        }
+      },
+    );
+  }
 
   void startTimer() {
+    if (_prepTime > 0) {
+      return startPrepTimer();
+    }
+
     const qSec = const Duration(milliseconds: 100);
     _timer = new Timer.periodic(
       qSec,
@@ -43,6 +111,7 @@ class _WWATimerState extends State<WWATimer>
             rotationController.stop();
             timer.cancel();
 
+            if (!prefs.getBool('soundMuted')) playSound(doneSoundId);
             if (widget._timerEndListener != null) widget._timerEndListener();
           });
         } else {
@@ -61,9 +130,16 @@ class _WWATimerState extends State<WWATimer>
 
   @override
   void initState() {
+    pool = Soundpool(streamType: StreamType.music, maxStreams: 3);
+    loadSounds();
+
     _time = widget.totalTime.toDouble();
+    _prepTime = 3;
 
     widget.resetTimer = (bool autoPlay) {
+      _autoPlay = autoPlay;
+      _prepTime = 3;
+      if (_prepTimer != null) _prepTimer.cancel();
       _time = widget.totalTime.toDouble();
       pauseTimer();
 
@@ -105,6 +181,9 @@ class _WWATimerState extends State<WWATimer>
   Widget build(BuildContext context) {
     return InkWell(
       onLongPress: () {
+        if (_prepTime > 0 && _autoPlay) return;
+
+        _autoPlay = true;
         pauseTimer();
         widget.controller.play();
         rotationController.forward(from: 0.0);
@@ -112,6 +191,9 @@ class _WWATimerState extends State<WWATimer>
         startTimer();
       },
       onTap: () {
+        if (_prepTime > 0 && _autoPlay) return;
+
+        _autoPlay = true;
         // Wrap the play or pause in a call to `setState`. This ensures the
         // correct icon is shown.
         setState(() {
@@ -130,29 +212,34 @@ class _WWATimerState extends State<WWATimer>
         });
       },
       child: Container(
-        width: 140,
+        width: 280,
         height: 100,
         padding: EdgeInsets.only(right: 20, top: 20),
         child: Stack(
           children: [
-            Container(
-              width: 110,
-              height: 50,
-              margin: EdgeInsets.only(top: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(99),
-              ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: 20),
-                  child: Text(
-                    '${_time.round()}',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+            Positioned(
+              right: 40,
+              child: Container(
+                width: _prepTime < 0.1 ? null : 200,
+                height: 50,
+                margin: EdgeInsets.only(top: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(99),
+                      bottomLeft: Radius.circular(99)),
+                ),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Padding(
+                    padding: EdgeInsets.only(right: 40, left: 20),
+                    child: Text(
+                      _prepTime < 0.1 ? '${_time.round()}' : getPrepMessage(),
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: _prepTime < 0.1 ? 20 : 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -182,9 +269,11 @@ class _WWATimerState extends State<WWATimer>
                       ),
                       Center(
                         child: Icon(
-                          widget.controller.value.isPlaying
-                              ? Icons.pause
-                              : Icons.play_arrow,
+                          (_prepTime < 0.1 || !_autoPlay)
+                              ? (widget.controller.value.isPlaying
+                                  ? Icons.pause
+                                  : Icons.play_arrow)
+                              : Icons.pan_tool,
                           color: Colors.white,
                           size: 32,
                         ),

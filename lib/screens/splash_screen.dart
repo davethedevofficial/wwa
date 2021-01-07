@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wwa/helpers/colors.dart';
@@ -46,9 +47,10 @@ class _SplashScreenState extends State<SplashScreen> {
               SizedBox(height: 10),
               Text(
                 'WOMEN WORKOUT APP',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),

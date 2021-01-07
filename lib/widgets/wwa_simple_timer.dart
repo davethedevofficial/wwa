@@ -96,8 +96,8 @@ class _WWASimpleTimerState extends State<WWASimpleTimer>
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
-      height: 100,
+      width: 120,
+      height: 120,
       child: Stack(
         children: [
           Center(
