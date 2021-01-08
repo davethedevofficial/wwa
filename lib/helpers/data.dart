@@ -16,8 +16,8 @@ List<Workout> workouts = [
       Exercise('Squats'),
     ]),
     Circuit([
-      Exercise('Banded Lateral Walk'),
-      Exercise('Squats'),
+      Exercise('Scissor Kicks'),
+      Exercise('Jumping Lunges'),
     ]),
   ]),
 ];

@@ -16,6 +16,7 @@ import 'package:soundpool/soundpool.dart';
 import 'package:flutter/services.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:wakelock/wakelock.dart';
 
 class WorkoutScreen extends StatefulWidget {
   @override
@@ -132,12 +133,10 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         }
       } else {
         this.currentExerciseIndex = nextIncompletedExecise();
-        _wwaTimer.resetTimer(true);
       }
     }
 
     setState(() {
-      _controller.play();
       _wwaTimer.resetTimer(true);
     });
   }
@@ -196,6 +195,44 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     // pool.play(soundId);
   }
 
+  void _initController(String asset, {bool autoPlay = true}) {
+    _controller = VideoPlayerController.asset(asset,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
+    _controller.setLooping(true);
+    _controller.setVolume(0);
+    if (autoPlay) _controller.play();
+    if (_wwaTimer != null) _wwaTimer.setController(_controller);
+    _initializeVideoPlayerFuture = _controller.initialize();
+    setState(() {});
+  }
+
+  Future<void> _startVideoPlayer(String asset, {bool autoPlay = true}) async {
+    if (_controller == null) {
+      // If there was no controller, just create a new one
+      _initController(asset, autoPlay: autoPlay);
+    } else {
+      // If there was a controller, we need to dispose of the old one first
+      final oldController = _controller;
+
+      // Registering a callback for the end of next frame
+      // to dispose of an old controller
+      // (which won't be used anymore after calling setState)
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await oldController.dispose();
+
+        // Initing new controller
+        _initController(asset, autoPlay: autoPlay);
+      });
+
+      // Making sure that controller is not used by setting it to null
+
+      setState(() {
+        _initializeVideoPlayerFuture = null;
+        _controller = null;
+      });
+    }
+  }
+
   @override
   void initState() {
     autoContinue = prefs.getBool('autoContinue') ?? autoContinue;
@@ -208,22 +245,19 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     // Create an store the VideoPlayerController. The VideoPlayerController
     // offers several different constructors to play videos from assets, files,
     // or the internet.
-    _controller = VideoPlayerController.asset(
+    _startVideoPlayer(
         currentWorkout.circuits[currentCircuitIndex]
             .exercises[currentExerciseIndex].clipPath,
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
-    _controller.setLooping(true);
-    _controller.setVolume(0);
+        autoPlay: true);
     // _controller = VideoPlayerController.network(
     //   'https://firebasestorage.googleapis.com/v0/b/wwapp-5da9c.appspot.com/o/Banded%20Lateral%20Walk%20-%20Vertical.mp4?alt=media&token=c90b46ba-442e-45eb-97ba-ff27cf93832d',
     // );
 //Banded Lateral Walk.mp4
-    _initializeVideoPlayerFuture = _controller.initialize();
 
     _wwaTimer = WWATimer(
-      controller: _controller,
-      totalTime: currentWorkout.exerciseTime,
-    );
+        controller: _controller,
+        totalTime: currentWorkout.exerciseTime,
+        autoPlay: true);
 
     _wwaRestTimer = WWASimpleTimer(
       totalTime: currentWorkout.exerciseRestTime,
@@ -242,6 +276,16 @@ class _WorkoutScreenState extends State<WorkoutScreen>
             .exercises[this.currentExerciseIndex]
             .completed++;
 
+      if (!(allCompleted() &&
+          (currentCircuitIndex == currentWorkout.circuits.length - 1))) {
+        var clip = currentWorkout
+            .circuits[
+                allCompleted() ? currentCircuitIndex + 1 : currentCircuitIndex]
+            .exercises[nextIncompletedExecise()]
+            .clipPath;
+        // _controller.dataSource = 'bicycle_crunches_repeat.mp4'
+        _startVideoPlayer(clip);
+      }
       rest();
     });
 
@@ -267,6 +311,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     //     textColor: Colors.white,
     //     fontSize: 16.0);
 
+    Wakelock.enable();
     super.initState();
   }
 
@@ -306,12 +351,14 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   void workoutCompleted() {
     setState(() {
+      Wakelock.disable();
       isCompleted = true;
     });
   }
 
   @override
   void dispose() {
+    Wakelock.disable();
     // Ensure disposing of the VideoPlayerController to free up resources.
     _controller.dispose();
 
@@ -335,10 +382,12 @@ class _WorkoutScreenState extends State<WorkoutScreen>
               if (snapshot.connectionState == ConnectionState.done) {
                 // If the VideoPlayerController has finished initialization, use
                 // the data it provides to limit the aspect ratio of the video.
-                return AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    // Use the VideoPlayer widget to display the video.
-                    child: VideoPlayer(_controller));
+                return _controller == null
+                    ? null
+                    : AspectRatio(
+                        aspectRatio: _controller.value.aspectRatio,
+                        // Use the VideoPlayer widget to display the video.
+                        child: VideoPlayer(_controller));
               } else {
                 // If the VideoPlayerController is still initializing, show a
                 // loading spinner.
@@ -384,7 +433,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                                 BoxShadow(color: Colors.black, blurRadius: 20)
                               ]),
                           child: Icon(
-                            player.playing ? Icons.music_note : Icons.music_off,
+                            !musicMuted ? Icons.music_note : Icons.music_off,
                           ),
                         ),
                       ),
@@ -451,6 +500,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                                       .length -
                                   1;
                               currentExerciseIndex = nextIncompletedExecise();
+                              var clip = currentWorkout
+                                  .circuits[currentCircuitIndex]
+                                  .exercises[currentExerciseIndex]
+                                  .clipPath;
+                              _startVideoPlayer(clip, autoPlay: false);
                               _wwaTimer.resetTimer(false);
                             });
                           },
@@ -463,6 +517,12 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                             onSelected: (index) {
                               setState(() {
                                 currentExerciseIndex = index;
+
+                                var clip = currentWorkout
+                                    .circuits[currentCircuitIndex]
+                                    .exercises[currentExerciseIndex]
+                                    .clipPath;
+                                _startVideoPlayer(clip, autoPlay: false);
                                 _wwaTimer.resetTimer(false);
                               });
                             })

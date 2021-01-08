@@ -31,6 +31,7 @@ dependencies:
   fluttertoast: ^7.1.6
   audio_service: ^0.16.1
   just_audio: ^0.6.5
+  wakelock: ^0.2.1+1
   flutter:
     sdk: flutter
 

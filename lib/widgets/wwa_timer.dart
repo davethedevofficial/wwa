@@ -13,18 +13,25 @@ class WWATimer extends StatefulWidget {
     Key key,
     this.controller,
     @required this.totalTime,
+    this.autoPlay = false,
   }) : super(key: key);
 
-  final VideoPlayerController controller;
+  VideoPlayerController controller;
   final int totalTime;
   Function _timerEndListener;
   Function resetTimer;
+  bool autoPlay;
 
   @override
   _WWATimerState createState() => _WWATimerState();
 
   void addTimeEndListener(void Function() listener) {
     this._timerEndListener = listener;
+  }
+
+  void setController(c) {
+    // controller.dispose();
+    controller = c;
   }
 }
 
@@ -83,7 +90,8 @@ class _WWATimerState extends State<WWATimer>
             timer.cancel();
           });
         } else {
-          if (!prefs.getBool('soundMuted')) {
+          if (prefs.getBool('soundMuted') == null ||
+              !prefs.getBool('soundMuted')) {
             if (_prepTime == 3) playSound(setSoundId);
             if (_prepTime.toStringAsFixed(1) == '2.1') playSound(setSoundId);
             if (_prepTime.toStringAsFixed(1) == '1.1') playSound(goSoundId);
@@ -111,7 +119,8 @@ class _WWATimerState extends State<WWATimer>
             rotationController.stop();
             timer.cancel();
 
-            if (!prefs.getBool('soundMuted')) playSound(doneSoundId);
+            if (prefs.getBool('soundMuted') == null ||
+                !prefs.getBool('soundMuted')) playSound(doneSoundId);
             if (widget._timerEndListener != null) widget._timerEndListener();
           });
         } else {
@@ -164,6 +173,8 @@ class _WWATimerState extends State<WWATimer>
         rotationController.repeat(reverse: false);
       }
     });
+
+    if (widget.autoPlay) widget.resetTimer(true);
 
     super.initState();
   }
