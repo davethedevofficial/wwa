@@ -239,7 +239,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     musicMuted = prefs.getBool('musicMuted') ?? musicMuted;
     soundMuted = prefs.getBool('soundMuted') ?? soundMuted;
 
-    currentWorkout = workouts[0];
+    currentWorkout = workoutPlan.days[0];
     currentCircuitIndex = 0;
     currentExerciseIndex = 0;
     // Create an store the VideoPlayerController. The VideoPlayerController

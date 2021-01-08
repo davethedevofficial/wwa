@@ -12,6 +12,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool loading = false;
+
   _launchIG() async {
     const url = ig_url;
     if (await canLaunch(url)) {
@@ -58,14 +60,18 @@ class _SplashScreenState extends State<SplashScreen> {
               WWAElevation(
                 color: primaryColor,
                 child: RaisedButton(
-                  child: Text(
-                    'START THE JOURNEY',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: loading
+                      ? CircularProgressIndicator(
+                          backgroundColor: Colors.white,
+                        )
+                      : Text(
+                          'START THE JOURNEY',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(99),
                   ),
@@ -74,10 +80,17 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: primaryColor,
                   textColor: Colors.white,
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/workout', //'/home',
-                    );
+                    if (loading) return;
+
+                    setState(() {
+                      loading = true;
+                    });
+                    Future.delayed(const Duration(milliseconds: 1000), () {
+                      Navigator.pushNamed(
+                        context,
+                        '/home',
+                      );
+                    });
                   },
                 ),
               ),
