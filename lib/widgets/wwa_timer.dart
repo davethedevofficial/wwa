@@ -14,12 +14,16 @@ class WWATimer extends StatefulWidget {
     this.controller,
     @required this.totalTime,
     this.autoPlay = false,
+    this.onPause,
+    this.onPlay,
   }) : super(key: key);
 
   VideoPlayerController controller;
   final int totalTime;
   Function _timerEndListener;
   Function resetTimer;
+  Function onPause;
+  Function onPlay;
   bool autoPlay;
 
   @override
@@ -212,12 +216,13 @@ class _WWATimerState extends State<WWATimer>
           if (widget.controller.value.isPlaying) {
             widget.controller.pause();
             rotationController.stop();
+            if (widget.onPause != null) widget.onPause();
             pauseTimer();
           } else {
             // If the video is paused, play it.
             widget.controller.play();
             rotationController.forward(from: rotationController.value);
-
+            if (widget.onPause != null) widget.onPlay();
             startTimer();
           }
         });

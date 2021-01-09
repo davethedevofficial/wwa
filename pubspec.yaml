@@ -33,6 +33,7 @@ dependencies:
   just_audio: ^0.6.5
   wakelock: ^0.2.1+1
   intl: ^0.16.1
+  confetti: ^0.5.4+1
   flutter:
     sdk: flutter
 

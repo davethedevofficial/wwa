@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:wwa/helpers/colors.dart';
+import 'package:wwa/helpers/data.dart';
 
 class WWAWorkoutDay extends StatelessWidget {
   final DateTime date;
   final bool active;
+  final bool restDay;
   final bool done;
   Widget main;
   Widget sub;
@@ -15,6 +17,7 @@ class WWAWorkoutDay extends StatelessWidget {
     @required this.onTap,
     this.active = false,
     this.done = false,
+    this.restDay = false,
   }) {
     if (done) {
       this.main = Text(
@@ -59,27 +62,6 @@ class WWAWorkoutDay extends StatelessWidget {
     }
   }
 
-  bool isToday(DateTime date) {
-    return date.month == DateTime.now().month && date.day == DateTime.now().day;
-  }
-
-  getMonthAb(monthNum) {
-    return [
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC'
-    ][monthNum - 1];
-  }
-
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -94,7 +76,11 @@ class WWAWorkoutDay extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(
             width: 3,
-            color: this.active ? primaryColor : Colors.white.withAlpha(40),
+            color: this.active
+                ? primaryColor
+                : (this.restDay
+                    ? Colors.orangeAccent.withAlpha(100)
+                    : Colors.white.withAlpha(40)),
           ),
         ),
         child: Center(

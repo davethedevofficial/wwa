@@ -17,6 +17,8 @@ import 'package:flutter/services.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:wakelock/wakelock.dart';
+import 'package:confetti/confetti.dart';
+import 'dart:async';
 
 class WorkoutScreen extends StatefulWidget {
   @override
@@ -69,6 +71,8 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     'NEFFEX___Be_Somebody_ft_ROZES.mp3'
   ];
   List<String> playlist = [];
+  Timer _timer;
+  ConfettiController _confettiController;
 
   bool allCompleted() {
     var completed = true;
@@ -179,8 +183,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
     await player.setShuffleModeEnabled(true);
     await player.shuffle();
-
-    if (!musicMuted) await player.play();
   }
 
   playMusic() async {
@@ -235,11 +237,19 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   @override
   void initState() {
+    start();
+    _timer = new Timer(const Duration(milliseconds: 400), () {});
+    super.initState();
+  }
+
+  start() {
+    _confettiController =
+        ConfettiController(duration: const Duration(seconds: 10));
     autoContinue = prefs.getBool('autoContinue') ?? autoContinue;
     musicMuted = prefs.getBool('musicMuted') ?? musicMuted;
     soundMuted = prefs.getBool('soundMuted') ?? soundMuted;
 
-    currentWorkout = workoutPlan.days[0];
+    currentWorkout = workoutPlan.days[prefs.getInt('selectedIndex') ?? 0];
     currentCircuitIndex = 0;
     currentExerciseIndex = 0;
     // Create an store the VideoPlayerController. The VideoPlayerController
@@ -248,16 +258,18 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     _startVideoPlayer(
         currentWorkout.circuits[currentCircuitIndex]
             .exercises[currentExerciseIndex].clipPath,
-        autoPlay: true);
-    // _controller = VideoPlayerController.network(
-    //   'https://firebasestorage.googleapis.com/v0/b/wwapp-5da9c.appspot.com/o/Banded%20Lateral%20Walk%20-%20Vertical.mp4?alt=media&token=c90b46ba-442e-45eb-97ba-ff27cf93832d',
-    // );
-//Banded Lateral Walk.mp4
+        autoPlay: false);
 
     _wwaTimer = WWATimer(
         controller: _controller,
         totalTime: currentWorkout.exerciseTime,
-        autoPlay: true);
+        autoPlay: false,
+        onPause: () {
+          player.pause();
+        },
+        onPlay: () {
+          if (!musicMuted) player.play();
+        });
 
     _wwaRestTimer = WWASimpleTimer(
       totalTime: currentWorkout.exerciseRestTime,
@@ -301,18 +313,9 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
     loadMusic();
 
-    playMusic();
-    // Fluttertoast.showToast(
-    //     msg: "~Music: NEFFEX - Best of Me",
-    //     toastLength: Toast.LENGTH_LONG,
-    //     gravity: ToastGravity.BOTTOM_RIGHT,
-    //     timeInSecForIosWeb: 1,
-    //     backgroundColor: primaryColor,
-    //     textColor: Colors.white,
-    //     fontSize: 16.0);
+    // playMusic();
 
     Wakelock.enable();
-    super.initState();
   }
 
   rest() {
@@ -350,6 +353,8 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   void workoutCompleted() {
+    player.pause();
+    _confettiController.play();
     setState(() {
       Wakelock.disable();
       isCompleted = true;
@@ -364,6 +369,8 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
     player.stop();
     player.dispose();
+    _confettiController.dispose();
+    _timer.cancel();
 
     super.dispose();
   }
@@ -411,12 +418,15 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                     children: [
                       InkWell(
                         onTap: () {
-                          if (player.playing) {
+                          if (!musicMuted) {
                             player.pause();
                             musicMuted = true;
                             prefs.setBool('musicMuted', musicMuted);
                           } else {
-                            player.play();
+                            if (_controller.value.isPlaying) {
+                              player.play();
+                            }
+
                             musicMuted = false;
                             prefs.setBool('musicMuted', musicMuted);
                           }
@@ -902,7 +912,24 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                         ),
                       ],
                     ),
-                  )
+                  ),
+                  Align(
+                    alignment: Alignment.center,
+                    child: ConfettiWidget(
+                      confettiController: _confettiController,
+                      blastDirectionality: BlastDirectionality
+                          .explosive, // don't specify a direction, blast randomly
+                      shouldLoop:
+                          true, // start again as soon as the animation is finished
+                      colors: const [
+                        Colors.green,
+                        Colors.blue,
+                        Colors.pink,
+                        Colors.orange,
+                        Colors.purple
+                      ], // manually specify the colors to be used
+                    ),
+                  ),
                 ],
               ),
             ),

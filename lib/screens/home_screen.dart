@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:wwa/helpers/colors.dart';
 import 'package:wwa/models/workout_plan.dart';
+import 'package:wwa/models/exercise.dart';
 import 'package:wwa/models/workout.dart';
 import 'package:wwa/widgets/wwa_elevation.dart';
 import 'package:wwa/widgets/wwa_workout_day.dart';
+import 'package:wwa/widgets/wwa_circuit.dart';
 import 'package:intl/intl.dart';
 import 'package:wwa/helpers/data.dart';
 
@@ -16,31 +18,53 @@ class _HomeScreenState extends State<HomeScreen> {
   bool loadingJournal = false;
   bool loadingWorkout = false;
   DateTime dateSelected;
+  int selectedIndex;
   DateFormat format;
   String startDate = '';
-  String currentDate = '';
   List<String> daysCompleted = [];
+  ScrollController controller;
 
   @override
   void initState() {
     format = new DateFormat("yyyy-MM-dd");
+    prefs.setString(
+        'startDate', format.format(DateTime.now().subtract(Duration(days: 5))));
     startDate = prefs.getString('startDate') ?? format.format(DateTime.now());
     daysCompleted =
-        prefs.getString('daysCompleted') ?? ['2021-01-08', '2021-01-10'];
-    currentDate =
-        prefs.getString('currentDate') ?? format.format(DateTime.now());
+        prefs.getString('daysCompleted') ?? ['2021-01-05', '2021-01-06'];
     print(startDate);
+
+    controller = new ScrollController(
+        initialScrollOffset:
+            ((DateTime.now().difference(DateTime.parse(startDate)).inDays) * 60)
+                .toDouble());
+
+    // controller.jumpTo(controller.position.maxScrollExtent);
     setState(() {
-      dateSelected = DateTime.parse(startDate);
+      dateSelected = DateTime.parse(format.format(DateTime.now()));
+      selectedIndex =
+          (dateSelected.difference(DateTime.parse(startDate)).inDays) - 1;
     });
     super.initState();
+  }
+
+  Workout getWorkout(date) {
+    return workoutPlan
+        .days[(date.difference(DateTime.parse(startDate)).inDays)];
+  }
+
+  String heading() {
+    return isToday(dateSelected)
+        ? 'Today\'s Exercises'
+        : 'Exercises for ${dateSelected.day} ${getMonthAb(dateSelected.month)}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: dateSelected.isAfter(DateTime.now())
+      floatingActionButton: dateSelected.isAfter(DateTime.now()) ||
+              getWorkout(dateSelected) == null
           ? null
           : Padding(
               padding: const EdgeInsets.only(bottom: 20),
@@ -69,6 +93,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     if (loadingWorkout) return;
 
+                    if (dateSelected.isAfter(DateTime.now()) ||
+                        getWorkout(dateSelected) == null) return;
+
+                    prefs.setInt('selectedIndex', selectedIndex);
                     setState(() {
                       loadingWorkout = true;
                     });
@@ -147,39 +175,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   width: double.infinity,
                   height: 80,
-                  child: ListView(
-                    // This next line does the trick.
+                  child: ListView.builder(
+                    padding: EdgeInsets.only(left: 20),
                     scrollDirection: Axis.horizontal,
-                    children: <Widget>[
-                      SizedBox(
-                        width: 20,
-                      ),
-                      for (var i = 0; i < workoutPlan.days.length; i++)
-                        WWAWorkoutDay(
-                          date:
-                              DateTime.parse(startDate).add(Duration(days: i)),
-                          done: daysCompleted.contains(format.format(
-                              DateTime.parse(startDate)
-                                  .add(Duration(days: i)))),
-                          active: dateSelected.isAtSameMomentAs(
-                              DateTime.parse(startDate).add(Duration(days: i))),
-                          onTap: (date) {
-                            setState(() {
-                              dateSelected = date;
-                            });
-                          },
-                        ),
-                    ],
+                    itemBuilder: (context, i) => WWAWorkoutDay(
+                      date: DateTime.parse(startDate).add(Duration(days: i)),
+                      done: daysCompleted.contains(format.format(
+                          DateTime.parse(startDate).add(Duration(days: i)))),
+                      active: dateSelected.isAtSameMomentAs(
+                          DateTime.parse(startDate).add(Duration(days: i))),
+                      restDay: workoutPlan.days[i] == null,
+                      onTap: (date) {
+                        setState(() {
+                          dateSelected = date;
+                          selectedIndex = i;
+                        });
+                      },
+                    ),
+                    controller: controller,
+                    itemCount: workoutPlan.days.length,
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  padding: EdgeInsets.only(top: 20, left: 20, right: 20),
                   width: double.infinity,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welcome Back Tammy!',
+                        'Hi Tammy!',
                         textAlign: TextAlign.left,
                         style: TextStyle(
                           color: Colors.white,
@@ -233,6 +257,92 @@ class _HomeScreenState extends State<HomeScreen> {
                           });
                         },
                       ),
+                      (getWorkout(dateSelected) == null)
+                          ? Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.only(top: 40.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/rest.png',
+                                    width: double.infinity,
+                                  )
+                                ],
+                              ),
+                            )
+                          : Container(
+                              margin: EdgeInsets.only(top: 40, left: 10),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(
+                                    color: primaryColor,
+                                    width: 5,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    child: Stack(
+                                      overflow: Overflow.visible,
+                                      children: [
+                                        Positioned(
+                                          top: 0,
+                                          left: -12.5,
+                                          child: Container(
+                                            width: 20,
+                                            height: 20,
+                                            decoration: BoxDecoration(
+                                              color: primaryColor,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(left: 20),
+                                          child: Text(
+                                            '${heading()}',
+                                            style: TextStyle(
+                                              fontSize: 28,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                              height: 0.9,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Builder(builder: (context) {
+                                    if (getWorkout(dateSelected) != null) {
+                                      List<WWACircuit> circuits = [];
+                                      for (var i = 0;
+                                          i <
+                                              getWorkout(dateSelected)
+                                                  .circuits
+                                                  .length;
+                                          i++)
+                                        circuits.add(WWACircuit(
+                                            title: 'Circuit ${i + 1}',
+                                            circuit: getWorkout(dateSelected)
+                                                .circuits[i]));
+                                      return Column(
+                                        children: circuits,
+                                      );
+                                    } else {
+                                      return Container();
+                                    }
+                                  }),
+                                  SizedBox(
+                                    height: 100,
+                                  )
+                                ],
+                              ),
+                            )
                     ],
                   ),
                 )
