@@ -19,6 +19,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:wakelock/wakelock.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:async';
+import 'package:intl/intl.dart';
 
 class WorkoutScreen extends StatefulWidget {
   @override
@@ -73,6 +74,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   List<String> playlist = [];
   Timer _timer;
   ConfettiController _confettiController;
+  List<String> daysCompleted = [];
+  int selectedIndex = 0;
+  String startDate = '';
+
+  DateFormat format;
 
   bool allCompleted() {
     var completed = true;
@@ -244,12 +250,19 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   start() {
     _confettiController =
-        ConfettiController(duration: const Duration(seconds: 10));
+        ConfettiController(duration: const Duration(seconds: 2));
+
     autoContinue = prefs.getBool('autoContinue') ?? autoContinue;
     musicMuted = prefs.getBool('musicMuted') ?? musicMuted;
     soundMuted = prefs.getBool('soundMuted') ?? soundMuted;
 
-    currentWorkout = workoutPlan.days[prefs.getInt('selectedIndex') ?? 0];
+    format = new DateFormat("yyyy-MM-dd");
+    startDate = prefs.getString('startDate') ?? format.format(DateTime.now());
+    daysCompleted = prefs.getStringList('daysCompleted') ?? [];
+
+    selectedIndex = prefs.getInt('selectedIndex') ?? 0;
+    selectedIndex = selectedIndex == -1 ? 0 : selectedIndex;
+    currentWorkout = workoutPlan.days[selectedIndex];
     currentCircuitIndex = 0;
     currentExerciseIndex = 0;
     // Create an store the VideoPlayerController. The VideoPlayerController
@@ -353,6 +366,10 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   void workoutCompleted() {
+    daysCompleted.add(format
+        .format(DateTime.parse(startDate).add(Duration(days: selectedIndex))));
+
+    prefs.setStringList('daysCompleted', daysCompleted);
     player.pause();
     _confettiController.play();
     setState(() {
@@ -363,579 +380,639 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   @override
   void dispose() {
-    Wakelock.disable();
-    // Ensure disposing of the VideoPlayerController to free up resources.
-    _controller.dispose();
-
-    player.stop();
-    player.dispose();
-    _confettiController.dispose();
-    _timer.cancel();
+    try {
+      Wakelock.disable();
+    } catch (e) {}
+    try {
+      _controller.dispose();
+    } catch (e) {}
+    try {
+      _confettiController.dispose();
+    } catch (e) {}
+    try {
+      player.stop();
+    } catch (e) {}
+    try {
+      player.dispose();
+    } catch (e) {}
+    try {
+      _timer.cancel();
+    } catch (e) {}
 
     super.dispose();
   }
 
+  Future<bool> _onWillPop() async {
+    return (await showDialog(
+          context: context,
+          builder: (context) => new AlertDialog(
+            title: new Text('Are you sure?'),
+            content: new Text('Do you want to exit the Workout?'),
+            actions: <Widget>[
+              new FlatButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: new Text('No'),
+              ),
+              new FlatButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: new Text('Yes'),
+              ),
+            ],
+          ),
+        )) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Use a FutureBuilder to display a loading spinner while waiting for the
-      // VideoPlayerController to finish initializing.
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          FutureBuilder(
-            future: _initializeVideoPlayerFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.done) {
-                // If the VideoPlayerController has finished initialization, use
-                // the data it provides to limit the aspect ratio of the video.
-                return _controller == null
-                    ? null
-                    : AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        // Use the VideoPlayer widget to display the video.
-                        child: VideoPlayer(_controller));
-              } else {
-                // If the VideoPlayerController is still initializing, show a
-                // loading spinner.
-                return Center(child: CircularProgressIndicator());
-              }
-            },
-          ),
-          SafeArea(
-            child: Stack(
-              children: [
-                Align(
-                  alignment: Alignment.topRight,
-                  child: _wwaTimer,
-                ),
-                Positioned(
-                  top: 110,
-                  right: 35,
-                  child: Wrap(
-                    direction: Axis.vertical,
-                    spacing: 20,
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          if (!musicMuted) {
-                            player.pause();
-                            musicMuted = true;
-                            prefs.setBool('musicMuted', musicMuted);
-                          } else {
-                            if (_controller.value.isPlaying) {
-                              player.play();
-                            }
-
-                            musicMuted = false;
-                            prefs.setBool('musicMuted', musicMuted);
-                          }
-
-                          setState(() {});
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(160),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: Colors.black, blurRadius: 20)
-                              ]),
-                          child: Icon(
-                            !musicMuted ? Icons.music_note : Icons.music_off,
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: () {
-                          soundMuted = !soundMuted;
-                          prefs.setBool('soundMuted', soundMuted);
-
-                          setState(() {});
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(160),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: Colors.black, blurRadius: 20)
-                              ]),
-                          child: Icon(
-                            !soundMuted ? Icons.volume_up : Icons.volume_off,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Circuit ${currentCircuitIndex + 1}/${currentWorkout.circuits.length}',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          'Each circuit done twice',
-                          style: TextStyle(
-                              color: Colors.white.withAlpha(220),
-                              shadows: [
-                                Shadow(color: Colors.black, blurRadius: 30)
-                              ],
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 10),
-                        WWAStepper(
-                          steps: currentWorkout.circuits.length,
-                          currentStep: currentCircuitIndex,
-                          onSelected: (index) {
-                            setState(() {
-                              currentCircuitIndex = index;
-                              currentExerciseIndex = currentWorkout
-                                      .circuits[currentCircuitIndex]
-                                      .exercises
-                                      .length -
-                                  1;
-                              currentExerciseIndex = nextIncompletedExecise();
-                              var clip = currentWorkout
-                                  .circuits[currentCircuitIndex]
-                                  .exercises[currentExerciseIndex]
-                                  .clipPath;
-                              _startVideoPlayer(clip, autoPlay: false);
-                              _wwaTimer.resetTimer(false);
-                            });
-                          },
-                        ),
-                        SizedBox(height: 10),
-                        WWAList(
-                            items: currentWorkout
-                                .circuits[currentCircuitIndex].exercises,
-                            currentItem: currentExerciseIndex,
-                            onSelected: (index) {
-                              setState(() {
-                                currentExerciseIndex = index;
-
-                                var clip = currentWorkout
-                                    .circuits[currentCircuitIndex]
-                                    .exercises[currentExerciseIndex]
-                                    .clipPath;
-                                _startVideoPlayer(clip, autoPlay: false);
-                                _wwaTimer.resetTimer(false);
-                              });
-                            })
-                      ],
+    return WillPopScope(
+        onWillPop: _onWillPop,
+        child: Scaffold(
+          // Use a FutureBuilder to display a loading spinner while waiting for the
+          // VideoPlayerController to finish initializing.
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              FutureBuilder(
+                future: _initializeVideoPlayerFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done) {
+                    // If the VideoPlayerController has finished initialization, use
+                    // the data it provides to limit the aspect ratio of the video.
+                    return _controller == null
+                        ? null
+                        : AspectRatio(
+                            aspectRatio: _controller.value.aspectRatio,
+                            // Use the VideoPlayer widget to display the video.
+                            child: VideoPlayer(_controller));
+                  } else {
+                    // If the VideoPlayerController is still initializing, show a
+                    // loading spinner.
+                    return Center(child: CircularProgressIndicator());
+                  }
+                },
+              ),
+              SafeArea(
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: _wwaTimer,
                     ),
-                  ),
-                )
-              ],
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            height: isResting ? double.infinity : 0,
-            color: primaryColor,
-            child: SafeArea(
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 20,
-                    left: 10,
-                    right: 10,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: Stack(
+                    Positioned(
+                      top: 110,
+                      right: 35,
+                      child: Wrap(
+                        direction: Axis.vertical,
+                        spacing: 20,
                         children: [
-                          Center(
+                          InkWell(
+                            onTap: () {
+                              if (!musicMuted) {
+                                player.pause();
+                                musicMuted = true;
+                                prefs.setBool('musicMuted', musicMuted);
+                              } else {
+                                if (_controller.value.isPlaying) {
+                                  player.play();
+                                }
+
+                                musicMuted = false;
+                                prefs.setBool('musicMuted', musicMuted);
+                              }
+
+                              setState(() {});
+                            },
                             child: Container(
-                              width: 120,
-                              height: 200,
-                              clipBehavior: Clip.antiAlias,
-                              decoration: BoxDecoration(boxShadow: [
-                                BoxShadow(
-                                  blurRadius: 20,
-                                  color: Colors.black.withAlpha(100),
-                                )
-                              ], borderRadius: BorderRadius.circular(10)),
-                              child: FutureBuilder(
-                                future: _initializeVideoPlayerFuture,
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.done) {
-                                    // If the VideoPlayerController has finished initialization, use
-                                    // the data it provides to limit the aspect ratio of the video.
-                                    return AspectRatio(
-                                        aspectRatio:
-                                            _controller.value.aspectRatio,
-                                        // Use the VideoPlayer widget to display the video.
-                                        child: VideoPlayer(_controller));
-                                  } else {
-                                    // If the VideoPlayerController is still initializing, show a
-                                    // loading spinner.
-                                    return Center(
-                                        child: CircularProgressIndicator());
-                                  }
-                                },
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(160),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: Colors.black, blurRadius: 20)
+                                  ]),
+                              child: Icon(
+                                !musicMuted
+                                    ? Icons.music_note
+                                    : Icons.music_off,
                               ),
                             ),
                           ),
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'NEXT EXERCISE',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  shadows: [
-                                    Shadow(blurRadius: 30, color: Colors.black)
-                                  ],
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                          InkWell(
+                            onTap: () {
+                              soundMuted = !soundMuted;
+                              prefs.setBool('soundMuted', soundMuted);
+
+                              setState(() {});
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(160),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: Colors.black, blurRadius: 20)
+                                  ]),
+                              child: Icon(
+                                !soundMuted
+                                    ? Icons.volume_up
+                                    : Icons.volume_off,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  Positioned(
-                    bottom: 20,
-                    left: 10,
-                    right: 10,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _wwaRestTimer == null ? Container() : _wwaRestTimer,
-                        SizedBox(height: 20),
-                        Text(
-                          'REST',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          restMessage,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withAlpha(180),
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 10),
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                    Align(
+                      alignment: Alignment.bottomLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Auto continue',
+                              'Circuit ${currentCircuitIndex + 1}/${currentWorkout.circuits.length}',
                               style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold),
                             ),
-                            Switch(
-                              value: autoContinue,
-                              onChanged: (value) {
+                            SizedBox(height: 5),
+                            Text(
+                              'Each circuit done twice',
+                              style: TextStyle(
+                                  color: Colors.white.withAlpha(220),
+                                  shadows: [
+                                    Shadow(color: Colors.black, blurRadius: 30)
+                                  ],
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 10),
+                            WWAStepper(
+                              steps: currentWorkout.circuits.length,
+                              currentStep: currentCircuitIndex,
+                              onSelected: (index) {
                                 setState(() {
-                                  autoContinue = value;
-                                  prefs.setBool('autoContinue', autoContinue);
+                                  currentCircuitIndex = index;
+                                  currentExerciseIndex = currentWorkout
+                                          .circuits[currentCircuitIndex]
+                                          .exercises
+                                          .length -
+                                      1;
+                                  currentExerciseIndex =
+                                      nextIncompletedExecise();
+                                  var clip = currentWorkout
+                                      .circuits[currentCircuitIndex]
+                                      .exercises[currentExerciseIndex]
+                                      .clipPath;
+                                  _startVideoPlayer(clip, autoPlay: false);
+                                  _wwaTimer.resetTimer(false);
                                 });
                               },
-                              activeTrackColor: Colors.white.withAlpha(150),
-                              activeColor: Colors.white,
                             ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                        RaisedButton(
-                          child: Text(
-                            'CONTINUE',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          elevation: 12,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 30, vertical: 20),
-                          color: Colors.white,
-                          textColor: Colors.black,
-                          onPressed: () {
-                            if (_wwaRestTimer.stopTimer != null)
-                              _wwaRestTimer.stopTimer();
-                            isResting = false;
-                            nextExercise();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            height: isCompleted ? double.infinity : 0,
-            color: Colors.white,
-            child: SafeArea(
-              child: Stack(
-                children: [
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Container(
-                        width: double.infinity,
-                        child: Wrap(
-                          direction: Axis.vertical,
-                          spacing: -100,
-                          children: [
-                            Image.asset('assets/images/victory.png'),
-                            Container(
-                              width: MediaQuery.of(context).size.width,
-                              decoration: BoxDecoration(
-                                  color: primaryColor,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(99),
-                                    topRight: Radius.circular(99),
-                                  )),
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 20),
-                                    child: Text(
-                                      'Add to your Fit Journal',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20.0),
-                                    child: Wrap(
-                                      spacing: 40,
-                                      children: [
-                                        InkWell(
-                                          onTap: () {},
-                                          child: Wrap(
-                                            direction: Axis.vertical,
-                                            crossAxisAlignment:
-                                                WrapCrossAlignment.center,
-                                            children: [
-                                              Container(
-                                                width: 70,
-                                                height: 70,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: Image.asset(
-                                                    'assets/images/journal_media_icon.png'),
-                                              ),
-                                              SizedBox(height: 5),
-                                              Text(
-                                                'Media',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              )
-                                            ],
-                                          ),
-                                        ),
-                                        InkWell(
-                                          onTap: () {},
-                                          child: Wrap(
-                                            direction: Axis.vertical,
-                                            crossAxisAlignment:
-                                                WrapCrossAlignment.center,
-                                            children: [
-                                              Container(
-                                                width: 70,
-                                                height: 70,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: Image.asset(
-                                                    'assets/images/journal_thought_icon.png'),
-                                              ),
-                                              SizedBox(height: 5),
-                                              Text(
-                                                'Thought',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              )
-                                            ],
-                                          ),
-                                        ),
-                                        InkWell(
-                                          onTap: () {},
-                                          child: Wrap(
-                                            direction: Axis.vertical,
-                                            crossAxisAlignment:
-                                                WrapCrossAlignment.center,
-                                            children: [
-                                              Container(
-                                                width: 70,
-                                                height: 70,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: Image.asset(
-                                                    'assets/images/journal_scale_icon.png'),
-                                              ),
-                                              SizedBox(height: 5),
-                                              Text(
-                                                'Weight',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              )
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(height: 60),
-                                  RaisedButton(
-                                    child: Text(
-                                      'HOME',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                    elevation: 12,
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 30, vertical: 20),
-                                    color: Colors.white,
-                                    textColor: Colors.black,
-                                    onPressed: () {
-                                      if (_wwaRestTimer.stopTimer != null)
-                                        _wwaRestTimer.stopTimer();
+                            SizedBox(height: 10),
+                            WWAList(
+                                items: currentWorkout
+                                    .circuits[currentCircuitIndex].exercises,
+                                currentItem: currentExerciseIndex,
+                                onSelected: (index) {
+                                  setState(() {
+                                    currentExerciseIndex = index;
 
-                                      Navigator.pushNamed(
-                                        context,
-                                        '/home',
-                                      );
-                                    },
-                                  ),
-                                  SizedBox(
-                                    height: 20,
-                                  )
-                                ],
-                              ),
-                            )
+                                    var clip = currentWorkout
+                                        .circuits[currentCircuitIndex]
+                                        .exercises[currentExerciseIndex]
+                                        .clipPath;
+                                    _startVideoPlayer(clip, autoPlay: false);
+                                    _wwaTimer.resetTimer(false);
+                                  });
+                                })
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        SizedBox(height: 20),
-                        Text(
-                          'WELL DONE',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          'WORKOUT\nCOMPLETED!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontSize: 42,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          'Hope to see you tomorrow',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.black.withAlpha(150),
-                            fontSize: 20,
-                            decoration: TextDecoration.underline,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.center,
-                    child: ConfettiWidget(
-                      confettiController: _confettiController,
-                      blastDirectionality: BlastDirectionality
-                          .explosive, // don't specify a direction, blast randomly
-                      shouldLoop:
-                          true, // start again as soon as the animation is finished
-                      colors: const [
-                        Colors.green,
-                        Colors.blue,
-                        Colors.pink,
-                        Colors.orange,
-                        Colors.purple
-                      ], // manually specify the colors to be used
-                    ),
-                  ),
-                ],
+                    )
+                  ],
+                ),
               ),
-            ),
-          )
-        ],
-      ),
-    );
+              Container(
+                width: double.infinity,
+                height: isResting ? double.infinity : 0,
+                color: primaryColor,
+                child: SafeArea(
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: 20,
+                        left: 10,
+                        right: 10,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: Container(
+                                  width: 120,
+                                  height: 200,
+                                  clipBehavior: Clip.antiAlias,
+                                  decoration: BoxDecoration(boxShadow: [
+                                    BoxShadow(
+                                      blurRadius: 20,
+                                      color: Colors.black.withAlpha(100),
+                                    )
+                                  ], borderRadius: BorderRadius.circular(10)),
+                                  child: FutureBuilder(
+                                    future: _initializeVideoPlayerFuture,
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.done) {
+                                        // If the VideoPlayerController has finished initialization, use
+                                        // the data it provides to limit the aspect ratio of the video.
+                                        return AspectRatio(
+                                            aspectRatio:
+                                                _controller.value.aspectRatio,
+                                            // Use the VideoPlayer widget to display the video.
+                                            child: VideoPlayer(_controller));
+                                      } else {
+                                        // If the VideoPlayerController is still initializing, show a
+                                        // loading spinner.
+                                        return Center(
+                                            child: CircularProgressIndicator());
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'NEXT EXERCISE',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      shadows: [
+                                        Shadow(
+                                            blurRadius: 30, color: Colors.black)
+                                      ],
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 20,
+                        left: 10,
+                        right: 10,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _wwaRestTimer == null ? Container() : _wwaRestTimer,
+                            SizedBox(height: 20),
+                            Text(
+                              'REST',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              restMessage,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(180),
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 10),
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  'Auto continue',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Switch(
+                                  value: autoContinue,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      autoContinue = value;
+                                      prefs.setBool(
+                                          'autoContinue', autoContinue);
+                                    });
+                                  },
+                                  activeTrackColor: Colors.white.withAlpha(150),
+                                  activeColor: Colors.white,
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 10),
+                            RaisedButton(
+                              child: Text(
+                                'CONTINUE',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              elevation: 12,
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 30, vertical: 20),
+                              color: Colors.white,
+                              textColor: Colors.black,
+                              onPressed: () {
+                                if (_wwaRestTimer.stopTimer != null)
+                                  _wwaRestTimer.stopTimer();
+                                isResting = false;
+                                nextExercise();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                height: isCompleted ? double.infinity : 0,
+                color: Colors.white,
+                child: SafeArea(
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            width: double.infinity,
+                            child: Wrap(
+                              direction: Axis.vertical,
+                              spacing: -100,
+                              children: [
+                                Image.asset('assets/images/victory.png'),
+                                Container(
+                                  width: MediaQuery.of(context).size.width,
+                                  decoration: BoxDecoration(
+                                      color: primaryColor,
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(99),
+                                        topRight: Radius.circular(99),
+                                      )),
+                                  child: Column(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 20),
+                                        child: Text(
+                                          journalFeature
+                                              ? 'Add to your Fit Journal'
+                                              : 'Congrats! You did it!',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      (journalFeature
+                                          ? Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 20.0),
+                                              child: Wrap(
+                                                spacing: 40,
+                                                children: [
+                                                  InkWell(
+                                                    onTap: () {},
+                                                    child: Wrap(
+                                                      direction: Axis.vertical,
+                                                      crossAxisAlignment:
+                                                          WrapCrossAlignment
+                                                              .center,
+                                                      children: [
+                                                        Container(
+                                                          width: 70,
+                                                          height: 70,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          child: Image.asset(
+                                                              'assets/images/journal_media_icon.png'),
+                                                        ),
+                                                        SizedBox(height: 5),
+                                                        Text(
+                                                          'Media',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 18,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        )
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  InkWell(
+                                                    onTap: () {},
+                                                    child: Wrap(
+                                                      direction: Axis.vertical,
+                                                      crossAxisAlignment:
+                                                          WrapCrossAlignment
+                                                              .center,
+                                                      children: [
+                                                        Container(
+                                                          width: 70,
+                                                          height: 70,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          child: Image.asset(
+                                                              'assets/images/journal_thought_icon.png'),
+                                                        ),
+                                                        SizedBox(height: 5),
+                                                        Text(
+                                                          'Thought',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 18,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        )
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  InkWell(
+                                                    onTap: () {},
+                                                    child: Wrap(
+                                                      direction: Axis.vertical,
+                                                      crossAxisAlignment:
+                                                          WrapCrossAlignment
+                                                              .center,
+                                                      children: [
+                                                        Container(
+                                                          width: 70,
+                                                          height: 70,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.white,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          child: Image.asset(
+                                                              'assets/images/journal_scale_icon.png'),
+                                                        ),
+                                                        SizedBox(height: 5),
+                                                        Text(
+                                                          'Weight',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 18,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        )
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          : Container()),
+                                      journalFeature
+                                          ? SizedBox(height: 60)
+                                          : Container(),
+                                      RaisedButton(
+                                        child: Text(
+                                          'HOME',
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(99),
+                                        ),
+                                        elevation: 12,
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 30, vertical: 20),
+                                        color: Colors.white,
+                                        textColor: Colors.black,
+                                        onPressed: () {
+                                          if (_wwaRestTimer.stopTimer != null)
+                                            _wwaRestTimer.stopTimer();
+
+                                          if (Navigator.of(context).canPop())
+                                            Navigator.of(context).pop();
+                                        },
+                                      ),
+                                      SizedBox(
+                                        height: 20,
+                                      )
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            SizedBox(height: 20),
+                            Text(
+                              'WELL DONE',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 5),
+                            Text(
+                              'WORKOUT\nCOMPLETED!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: primaryColor,
+                                fontSize: 42,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 5),
+                            Text(
+                              'Hope to see you tomorrow',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.black.withAlpha(150),
+                                fontSize: 20,
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: ConfettiWidget(
+                          confettiController: _confettiController,
+                          blastDirectionality: BlastDirectionality
+                              .explosive, // don't specify a direction, blast randomly
+                          shouldLoop:
+                              false, // start again as soon as the animation is finished
+                          colors: const [
+                            Colors.green,
+                            Colors.blue,
+                            Colors.pink,
+                            Colors.orange,
+                            Colors.purple
+                          ], // manually specify the colors to be used
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            ],
+          ),
+        ));
   }
 }

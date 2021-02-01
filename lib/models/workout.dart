@@ -6,5 +6,6 @@ class Workout {
   int circuitRestTime = 60;
   List<Circuit> circuits = [];
 
-  Workout(this.circuits);
+  Workout(this.circuits,
+      {this.exerciseTime, this.circuitRestTime, this.exerciseRestTime});
 }

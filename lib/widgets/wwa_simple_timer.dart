@@ -87,7 +87,7 @@ class _WWASimpleTimerState extends State<WWASimpleTimer>
   @override
   void dispose() {
     // Ensure disposing of the VideoPlayerController to free up resources.
-    rotationController.dispose();
+    rotationController?.dispose();
 
     _timer?.cancel();
     super.dispose();

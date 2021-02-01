@@ -41,10 +41,10 @@ class WWAWorkoutDay extends StatelessWidget {
             color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
       );
       this.sub = Text(
-        'CRUSH IT!',
+        this.restDay ? 'REST DAY!' : 'CRUSH IT!',
         textAlign: TextAlign.center,
         style: TextStyle(
-            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 8),
+            color: (Colors.white), fontWeight: FontWeight.bold, fontSize: 8),
       );
     } else {
       this.main = Text(
